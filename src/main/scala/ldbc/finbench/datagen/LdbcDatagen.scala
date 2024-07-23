@@ -1,38 +1,32 @@
 package ldbc.finbench.datagen
 
-import ldbc.finbench.datagen.config.{ConfigParser, DatagenConfiguration}
 import ldbc.finbench.datagen.factors.FactorGenerationStage
 import ldbc.finbench.datagen.generation.dictionary.Dictionaries
-import ldbc.finbench.datagen.generation.{DatagenContext, GenerationStage}
+import ldbc.finbench.datagen.generation.GenerationStage
 import ldbc.finbench.datagen.transformation.TransformationStage
 import ldbc.finbench.datagen.util.{Logging, SparkApp}
-import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path}
 import shapeless.lens
-
-import java.net.URI
-import java.util.Properties
-import scala.collection.JavaConverters._
 
 object LdbcDatagen extends SparkApp with Logging {
   val appName = "LDBC FinBench Datagen for Spark"
 
   case class Args(
-                   scaleFactor: String = "0.01",
-                   scaleFactorXml: String = "",
-                   params: Map[String, String] = Map.empty,
-                   paramFile: Option[String] = None,
-                   outputDir: String = "out",
-                   bulkloadPortion: Double = 0.97,
-                   keepImplicitDeletes: Boolean = false,
-                   batchPeriod: String = "second",
-                   numPartitions: Option[Int] = None,
-                   irFormat: String = "csv",
-                   format: String = "csv",
-                   formatOptions: Map[String, String] = Map.empty,
-                   epochMillis: Boolean = false,
-                   generateFactors: Boolean = true,
-                   factorFormat: String = "parquet"
-                 )
+      scaleFactor: String = "0.01",
+      scaleFactorXml: String = "",
+      params: Map[String, String] = Map.empty,
+      paramFile: Option[String] = None,
+      outputDir: String = "out",
+      bulkloadPortion: Double = 0.97,
+      keepImplicitDeletes: Boolean = false,
+      batchPeriod: String = "second",
+      numPartitions: Option[Int] = None,
+      irFormat: String = "csv",
+      format: String = "csv",
+      formatOptions: Map[String, String] = Map.empty,
+      epochMillis: Boolean = false,
+      generateFactors: Boolean = true,
+      factorFormat: String = "parquet"
+  )
 
   override type ArgsType = Args
 
@@ -54,7 +48,9 @@ object LdbcDatagen extends SparkApp with Logging {
 
       opt[Map[String, String]]('p', "params")
         .action((x, c) => args.params.set(c)(x))
-        .text("Key=value params passed to the generator. Takes precedence over --param-file")
+        .text(
+          "Key=value params passed to the generator. Takes precedence over --param-file"
+        )
 
       opt[String]('P', "param-file")
         .action((x, c) => args.paramFile.set(c)(Some(x)))
@@ -78,11 +74,14 @@ object LdbcDatagen extends SparkApp with Logging {
       opt[String]("batch-period")
         .action((x, c) => args.batchPeriod.set(c)(x))
         .text(
-          "Period of the batches in BI mode. Possible values: year, month, day, hour. Default: day")
+          "Period of the batches in BI mode. Possible values: year, month, day, hour. Default: day"
+        )
 
       opt[String]('f', "format")
         .action((x, c) => args.format.set(c)(x))
-        .text("Output format. Currently, Spark Datasource formats are supported, such as 'csv', 'parquet' or 'orc'.")
+        .text(
+          "Output format. Currently, Spark Datasource formats are supported, such as 'csv', 'parquet' or 'orc'."
+        )
 
       opt[Unit]("keep-implicit-deletes")
         .action((x, c) => args.keepImplicitDeletes.set(c)(true))
@@ -114,16 +113,14 @@ object LdbcDatagen extends SparkApp with Logging {
         .text("Use longs with millis since Unix epoch instead of native dates")
     }
 
-    val parsedArgs = parser.parse(args, Args()).getOrElse(throw new RuntimeException("Invalid arguments"))
+    val parsedArgs = parser
+      .parse(args, Args())
+      .getOrElse(throw new RuntimeException("Invalid arguments"))
 
     run(parsedArgs)
   }
 
   override def run(args: ArgsType): Unit = {
-    // build and initialize the configs
-    val config = buildConfig(args)
-    DatagenContext.initialize(config)
-
     val generationArgs = GenerationStage.Args(
       scaleFactor = args.scaleFactor,
       outputDir = args.outputDir,
@@ -141,29 +138,5 @@ object LdbcDatagen extends SparkApp with Logging {
       log.info("[Main] Starting factoring stage")
       FactorGenerationStage.run(factorArgs)
     }
-  }
-
-
-  private def buildConfig(args: Args): DatagenConfiguration = {
-    val conf = new java.util.HashMap[String, String]
-    val props = new Properties() // Read default values at first
-    props.load(getClass.getClassLoader.getResourceAsStream("params_default.ini"))
-    conf.putAll(props.asScala.asJava)
-
-    for {paramsFile <- args.paramFile} conf.putAll(ConfigParser.readConfig(openPropFileStream(URI.create(paramsFile))))
-
-    for {(k, v) <- args.params} conf.put(k, v)
-
-    for {partitions <- args.numPartitions} conf.put("spark.partitions", partitions.toString) // Following params will overwrite the values in params_default
-    conf.putAll(ConfigParser.scaleFactorConf(args.scaleFactorXml, args.scaleFactor)) // put scale factor conf
-    conf.put("generator.outputDir", args.outputDir)
-    conf.put("generator.format", args.format)
-
-    new DatagenConfiguration(conf)
-  }
-
-  private def openPropFileStream(uri: URI): FSDataInputStream = {
-    val fs = FileSystem.get(uri, spark.sparkContext.hadoopConfiguration)
-    fs.open(new Path(uri.getPath))
   }
 }
