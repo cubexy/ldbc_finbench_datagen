@@ -70,12 +70,12 @@ def run_local(
 
     conf = flatten([['-c', f'{k}={v}'] for k, v in final_spark_conf.items()])
     cmd = [
-        'spark-submit',
+        'M:\\GitHub\\ldbc_finbench_datagen\\scripts\\spark\\spark-3.2.2-bin-hadoop3.2\\bin\\spark-submit.cmd',
         *conf,
         *opt_master,
         *opt_class,
         *additional_opts,
-        jar_file,
+        "M:\\GitHub\\ldbc_finbench_datagen\\target\\ldbc_finbench_datagen-0.2.0-SNAPSHOT-jar-with-dependencies.jar",
         # *arg_opts,
         *passthrough_args
     ]
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run a Datagen job locally')
     parser.add_argument('--jar',
                         type=str,
-                        default=os.environ.get('LDBC_FINBENCH_DATAGEN_JAR'),
+                        default="M:\\GitHub\\ldbc_finbench_datagen\\target\\ldbc_finbench_datagen-0.2.0-SNAPSHOT-jar-with-dependencies.jar",
                         help='LDBC Datagen JAR file [LDBC_FINBENCH_DATAGEN_JAR]')
     parser.add_argument('--main-class',
                         type=str,
@@ -119,9 +119,6 @@ if __name__ == "__main__":
     self_args, child_args = split_passthrough_args()
 
     args = parser.parse_args(self_args)
-
-    if not args.jar:
-        raise ValueError('No JAR given. Specify with --jar or LDBC_FINBENCH_DATAGEN_JAR env var')
 
     run_local(
         args.jar,
